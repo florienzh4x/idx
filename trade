@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+
+if [[ ! -f nonce ]]; then
+	echo "1" > nonce
+fi
+
+. config
+
+merah='\e[91m'
+cyan='\e[96m'
+kuning='\e[93m'
+oren='\033[0;33m' 
+margenta='\e[95m'
+biru='\e[94m'
+ijo="\e[92m"
+putih="\e[97m"
+normal='\033[0m'
+bold='\e[1m'
+labelmerah='\e[41m'
+labelijo='\e[42m'
+labelkuning='\e[43m'
+
+clear;
+printf "$bold"
+
+thousands(){
+    sed -re ' :restart ; s/([0-9])([0-9]{3})($|[^0-9])/\1.\2\3/ ; t restart '
+}
+
+setTradeProfile(){
+
+	if [[ -z $(echo "$TRADE_PROFILE" | grep -E ^\-?[0-9]?\.?[0-9]+$) ]]; then
+		printf "\n${merah}WARNING$putih: HARUS BERUPA ANGKA!!!\n\n"
+		printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
+		setTradeProfile $TRADE_PROFILE
+	fi
+	if [[ $TRADE_PROFILE -lt 10000 ]]; then
+		printf "\n${merah}WARNING$putih: MINIMAL BUY 10000 IDR!!!\n\n"
+		printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
+		setTradeProfile $TRADE_PROFILE
+	fi
+	if [[ -z $TRADE_PROFILE ]]; then
+		printf "\n${merah}WARNING$putih: INPUT TIDAK BOLEH KOSONG!!!\n\n"
+		printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
+		setTradeProfile $TRADE_PROFILE
+	fi
+}
+
+ticker(){
+	pair=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+	getData=$(curl -skL "https://indodax.com/api/$pair/ticker")
+	lastPrice=$(echo "$getData" | jq -r .ticker.last | thousands)
+	highPrice=$(echo "$getData" | jq -r .ticker.high | thousands)
+	lowPrice=$(echo "$getData" | jq -r .ticker.low | thousands)
+	volumeIdr=$(echo "$getData" | jq -r .ticker.vol_idr | thousands)
+	sellOffer=$(echo "$getData" | jq -r .ticker.sell | thousands)
+	buyOffer=$(echo "$getData" | jq -r .ticker.buy | thousands)
+	if [[ $lastPrice == 0 || $sellOffer == 0 || $buyOffer == 0 || $volumeIdr == 0 || $lastPrice == 'null' || $sellOffer == 'null' || $buyOffer == 'null' || $volumeIdr == 'null' ]]; then
+		printf "\n${merah}WARNING$putih: $1 SUSPEND!!! PILIH YANG LAIN!!!\n\n"
+		printf "${cyan}pilih nomor crypto ${putih}(${cyan}kosongkan jika ingin random${putih}):${biru} ";read pairNum;
+		if [[ $pairNum == '' ]]; then
+			pairChoose=${PAIR[$PAIR_RANDOM]}
+		else
+			pairChoose=${PAIR[$pairNum]}
+		fi
+		ticker $pairChoose
+	fi		
+}
+
+getInfo(){
+	nonce=$(cat nonce)
+	postData='method=getInfo&nonce='$nonce''
+	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
+	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	status=$(echo "$getData" | jq -r .success)
+	echo ""$[$nonce+1]"" > nonce
+	if [[ $status == 1 ]]; then
+		balanceIdr=$(echo "$getData" | jq -r .return.balance.idr | thousands)
+		if [[ $(echo "$getData" | jq -r .return.balance.idr) -lt 10000 ]]; then
+			printf "\n${cyan}Total Balance${putih}:${merah} $balanceIdr ${biru}IDR $normal\n\n"
+			printf "\n${merah}WARNING$putih: SALDO TIDAK MENCUKUPI, SILAHKAN TOP UP TERLEBIH DAHULU!!!\n\n"
+			exit
+		fi
+	elif [[ $status == 0 ]]; then
+		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		exit
+	else
+		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		exit
+	fi
+}
+
+getOrder(){
+	pair="$1"
+	orderId="$2"
+	nonce=$(cat nonce)
+	postData='method=getOrder&nonce='$nonce'&pair='$pair'&order_id='$orderId''
+	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
+	echo ""$[$nonce+1]"" > nonce
+	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	if [[ $status == 1 ]]; then
+		statusOrder=$(echo "$getData" | jq -r .return.order.status)
+		if [[ $statusOrder == 'open' ]]; then
+			orderStatus='PENDING'
+		fi
+	elif [[ $status == 0 ]]; then
+		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		exit
+	else
+		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		exit
+	fi
+}
+
+buy(){
+	pair="$1"
+	price="$2"
+	balance="$3"
+	nonce=$(cat nonce)
+	postData='method=trade&nonce='$nonce'&type=buy&pair='$pair'&price='$price'&idr='$balance''
+	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
+	echo ""$[$nonce+1]"" > nonce
+	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	if [[ $status == 1 ]]; then
+		
+	elif [[ $status == 0 ]]; then
+		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		exit
+	else
+		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		exit
+	fi
+}
+
+sell(){
+	pair="$1"
+	price="$2"
+	balance="$3"
+	nonce=$(cat nonce)
+	postData='method=trade&nonce='$nonce'&type=sell&pair='$pair'&price='$price''
+	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
+	echo ""$[$nonce+1]"" > nonce
+	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	if [[ $status == 1 ]]; then
+
+	elif [[ $status == 0 ]]; then
+		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		exit
+	else
+		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		exit
+	fi
+}
+
+printf "${cyan}CRYPTO LIST${putih}: ${normal}\n";
+echo "$PAIR_OUTPUT" | column
+echo
+printf "${cyan}pilih nomor crypto ${putih}(${cyan}kosongkan jika ingin random${putih}):${biru} ";read pairNum;
+
+if [[ $pairNum == '' ]] || [[ -z $(echo "$pairNum" | grep -E ^\-?[0-9]?\.?[0-9]+$) ]]; then
+	pairChoose=${PAIR[$PAIR_RANDOM]}
+else
+	pairChoose=${PAIR[$pairNum]}
+fi
+echo
+printf "${cyan}crypto yang dipilih${putih}:${biru} $pairChoose ${normal}\n\n"
+
+ticker $pairChoose
+
+printf "${cyan}INFO${putih}: ${biru}$pairChoose ${putih}[ ${cyan}last${putih}: ${biru}$lastPrice ${putih}| ${cyan}ask${putih}: ${biru}$sellOffer ${putih}| ${cyan}bid${putih}: ${biru}$buyOffer ${putih}| ${cyan}high${putih}: ${biru}$highPrice ${putih}| ${cyan}low${putih}: ${biru}$lowPrice ${putih}| ${cyan}volume${putih}: ${biru}$volumeIdr IDR ${putih}] $normal\n\n"
+
+TRADE_PROFILE=$(echo "$TRADE_PROFILE" | tr '[:upper:]' '[:lower:]')
+pairChoose=$(echo "$pairChoose" | tr '[:upper:]' '[:lower:]')
+if [[ $TRADE_PROFILE == '' ]]; then
+	printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
+	setTradeProfile $TRADE_PROFILE
+	printf "\n${cyan}beli dengan harga${putih}:${biru} $(echo "$TRADE_PROFILE" | thousands) IDR $normal\n\n"
+elif [[ $TRADE_PROFILE == 'last' ]]; then
+	printf "${cyan}beli dengan harga${putih}:${biru} $(echo "$lastPrice" | thousands) IDR $normal\n\n"
+	TRADE_PROFILE=$lastPrice
+elif [[ $TRADE_PROFILE == 'instant' ]]; then
+	printf "${cyan}beli dengan harga${putih}:${biru} $(echo "$sellOffer" | thousands) IDR $normal\n\n"
+	TRADE_PROFILE=$sellOffer
+elif [[ ! $TRADE_PROFILE =~ (instant|last) ]]; then
+	printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
+	setTradeProfile $TRADE_PROFILE
+	printf "\n${cyan}beli dengan harga${putih}:${biru} $(echo "$TRADE_PROFILE" | thousands) IDR $normal\n\n"
+fi
+
+getInfo
+printf "\n${cyan}Total Balance${putih}:${ijo} $balanceIdr ${biru}IDR $normal\n\n"
+
+buy $pairChoose $TRADE_PROFILE $TRADE_AMOUNT
+

@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+
+#trade api: NSBFUAU6-K8AQUSFM-9AVBBSK8-HAGEJGFH-VV8LFRSC
+#secret: 9bf24bfcd164bb3e38219de43016c0ae3408c0ae408507449bc99145d31596c6a9e394b7070a03c9
+
+merah='\e[91m'
+cyan='\e[96m'
+kuning='\e[93m'
+oren='\033[0;33m' 
+margenta='\e[95m'
+biru='\e[94m'
+ijo="\e[92m"
+putih="\e[97m"
+normal='\033[0m'
+bold='\e[1m'
+labelmerah='\e[41m'
+labelijo='\e[42m'
+labelkuning='\e[43m'
+
+clear;
+printf "$bold"
+ngecek(){
+	prevTypeTrade="$1"
+	prevValueTrade="$2"
+	prevPrice="$3"
+	beli="$4"
+	jual="$5"
+	prevValueBeli="$6"
+	prevValueJual="$7"
+	hargaNow="$8"
+	code="$9"
+	naek="${10}"
+	turun="${11}"
+	masuk="${12}"
+	totalCoin="${13}"
+	data=$(curl -skL 'https://indodax.com/api/webdata/'$code'' -H 'authority: indodax.com' -H 'accept: application/json, text/javascript, */*; q=0.01' -H 'x-requested-with: XMLHttpRequest' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36' -H 'content-type: application/x-www-form-urlencoded; charset=UTF-8' -H 'origin: https://indodax.com' -H 'sec-fetch-site: same-origin' -H 'sec-fetch-mode: cors' -H 'sec-fetch-dest: empty' -H 'referer: https://indodax.com/market/'$code'' -H 'accept-language: id-ID,id;q=0.9' -H 'cookie: __cfduid=d9724ee49c520a15d6afeacc249aa100c1613455501; __asc=e5551697177a9712a38b56eddc8; __auc=e5551697177a9712a38b56eddc8; dismiss=false; lang2=id; check=cookie; _ga=GA1.2.701202911.1613455503; _gid=GA1.2.1219108208.1613455503; _gat_gtag_UA_46363731_7=1; _fbp=fb.1.1613455503659.1284497261; btcid=9d8771b9150c4ec376c1f10a66de6f08; _gat_gtag_UA_46363731_11=1' -d 'lang=indonesia' --compressed); 
+	priceOutput=$(echo "$data" | jq -r .last_price | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+	price=$(echo "$data" | jq -r .last_price); 
+	LastTypeTrade=$(echo "$data" | jq -r .last_trades[0].type); 
+	LastPriceTrade=$(echo "$data" | jq -r .last_trades[0].price | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+	LastValueTrade=$(echo "$data" | jq -r .last_trades[0].rp); 
+	LastValueTradeOutput=$(echo "$data" | jq -r .last_trades[0].rp | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+	# price=$(echo "$data" | jq -r .last_price | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+	bid=$(echo "$data" | jq -r .buy_orders[0].price | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+	totalBid=$(echo "$data" | jq .frame_buy_orders | grep -Po '(?<=Total\: )(.*?)[^\\"]*' | cut -d '/' -f 2 | sed 's/ IDR//g' | head -1);
+	ask=$(echo "$data" | jq -r .sell_orders[0].price | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+	totalAsk=$(echo "$data" | jq .frame_sell_orders | grep -Po '(?<=Total\: )(.*?)[^\\"]*' | cut -d '/' -f 2 | sed 's/ IDR//g' | head -1);
+	if [[ $LastTypeTrade == 'sell' ]]; then
+		sinyal="${merah}$LastTypeTrade"
+	else
+		sinyal="${ijo}$LastTypeTrade"
+	fi
+
+	if [[ $prevPrice > $price ]]; then
+		hargaNow="${merah}$priceOutput"
+		turun=$[$turun+1]
+	elif [[ $prevPrice < $price ]]; then
+		hargaNow="${ijo}$priceOutput"
+		naek=$[$naek+1]
+	elif [[ $prevPrice == $price ]]; then
+		hargaNow="${kuning}$priceOutput"
+	fi
+
+	if [[ $masuk > $price ]]; then
+		poinnTurun=$(expr ${masuk} - ${price})
+		awalInvest=$(echo $masuk \* $totalCoin | bc)
+		lastInvest=$(echo $price \* $totalCoin | bc)
+		poinTurun=$(expr ${awalInvest%.*} - ${lastInvest%.*} | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta')
+		outputInvest=$(echo "${lastInvest%.*}" | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta')
+		lastPoint="${putih}$outputInvest (${merah}-$poinTurun${putih}) (Poin: ${merah}-$poinnTurun${putih})"
+	else
+		poinnNaek=$(expr ${price} - ${masuk})
+		awalInvest=$(echo $masuk \* $totalCoin | bc)
+		lastInvest=$(echo $price \* $totalCoin | bc)
+		poinNaek=$(expr ${lastInvest%.*} - ${awalInvest%.*} | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta')
+		outputInvest=$(echo "${lastInvest%.*}" | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta')
+		lastPoint="${putih}$outputInvest (${ijo}+$poinNaek${putih}) (Poin: ${ijo}+$poinnNaek${putih})"
+	fi
+
+	if [[ "$LastTypeTrade" == "$prevTypeTrade" && "$LastValueTrade" == "$prevValueTrade" ]]; then
+		printf "${cyan}$code [${kuning}$(date '+%X')${cyan}] ${putih}=> $hargaNow ${cyan}[${putih}Profit: ${lastPoint} ${cyan}] ${cyan}[${putih}Ask: ${kuning}$ask ${cyan}(${ijo}$totalAsk${cyan}) ${putih}| Bid: ${kuning}$bid ${cyan}(${ijo}$totalBid${cyan})] ${cyan}[${ijo}Up${putih}: ${kuning}$naek ${putih}| ${merah}Down${putih}: ${kuning}$turun ${cyan}] \n" # [${putih}Last Trade: $sinyal ${cyan}(${kuning}$LastPriceTrade${cyan}/${kuning}$LastValueTradeOutput${cyan})] ${cyan}[${ijo}buy${putih}: ${cyan}${beli} ${putih}(${cyan}${totalBeliOutput}${putih}) ${putih} | ${merah}sell${putih}: ${cyan}${jual} ${putih}(${cyan}${totalJualOutput}${putih}) ${cyan}] ${normal}\n";
+	else
+		if [[ $LastTypeTrade == "buy" ]]; then
+			((beli++))
+			((totalBeli=$prevValueBeli+$LastValueTrade))
+			totalBeliOutput=$(echo "$totalBeli" | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+		else
+			((jual++))
+			((totalJual=$prevValueJual+$LastValueTrade))
+			totalJualOutput=$(echo "$totalJual" | sed ':a;s/\B[0-9]\{3\}\>/.&/;ta'); 
+		fi
+		printf "${cyan}$code [${kuning}$(date '+%X')${cyan}] ${putih}=> $hargaNow ${cyan}[${putih}Profit: ${lastPoint} ${cyan}] ${cyan}[${putih}Ask: ${kuning}$ask ${cyan}(${ijo}$totalAsk${cyan}) ${putih}| Bid: ${kuning}$bid ${cyan}(${ijo}$totalBid${cyan})] ${cyan}[${ijo}Up${putih}: ${kuning}$naek ${putih}| ${merah}Down${putih}: ${kuning}$turun ${cyan}] \n" # [${putih}Last Trade: $sinyal ${cyan}(${kuning}$LastPriceTrade${cyan}/${kuning}$LastValueTradeOutput${cyan})] ${cyan}[${ijo}buy${putih}: ${cyan}${beli} ${putih}(${cyan}${totalBeliOutput}${putih}) ${putih} | ${merah}sell${putih}: ${cyan}${jual} ${putih}(${cyan}${totalJualOutput}${putih}) ${cyan}]${normal}\n";	
+	fi
+	if [[ $totalJual == '' ]]; then
+		totalJual="0"
+	elif [[ $totalBeli == '' ]]; then
+		totalBeli="0"
+	fi
+	sleep 1;
+	ngecek $LastTypeTrade $LastValueTrade $price $beli $jual $totalBeli $totalJual ''$hargaNow'' $code $naek $turun $masuk "$totalCoin"
+}
+
+beli=0
+jual=0
+satu=0
+dua=0
+tiga=0
+enam=0
+tujuh=0
+delapan=0
+turun=0
+naek=0
+if [[ -z $1 ]]; then
+	echo "Usage: $0 (code) (price masuk) (total coin)"
+	exit 1;
+fi
+if [[ -z $2 ]]; then
+	echo "Usage: $0 (code) (price masuk) (total coin)"
+	exit 1;
+fi
+if [[ -z $3 ]]; then
+	echo "Usage: $0 (code) (price masuk) (total coin)"
+	exit 1;
+fi
+code="$1"
+masuk="$2"
+totalCoin="$3"
+if [[ $totalCoin =~ "," ]]; then
+	totalCoin=$(echo "$totalCoin" | sed 's/,/./g')
+fi
+ngecek $satu $dua $tiga $beli $jual $enam $tujuh $delapan $code $naek $turun $masuk $duit "$totalCoin"
