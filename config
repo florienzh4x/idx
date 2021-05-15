@@ -4,11 +4,20 @@
 
 # API KEY & SECRET KEY BISA DIDAPATKAN DI LINK https://indodax.com/trade_api
 
+
+# ipan
+# API_KEY=PRCPEH9H-BGVYZCJW-OOI4K28H-JG9Q955J-RWEBUSEJ
+# SECRET_KEY=1073034ef6b2a28147cf75181987d4ace895db41599d89268b93e6ed49c497f22a1e5e1f71e39783
+
+
 # !!!! IMPORTANT !!!!
 # JANGAN LUPA UNTUK CENTANG PERMISSION TRADE
 # !!!!!!!!!!!!!!!!!!!!
-API_KEY='0CVDHHW1-AVJ7JTF7-NMLNXGE5-I8KLGGWP-YEG7JCE9'
-SECRET_KEY='54474c97d9b7684af71b4ceea89fc1f7776b680a486fa5f6d8be3ce67bb3b3c274ccf58a94d55fbf'
+# API_KEY='ZXCQZP4J-2ZHEGOFE-NAAWFBEY-KVO8SSNO-4WMCKIFF'
+# SECRET_KEY='a0cc154b1daf5541c71ff3247bdcab4904ffd154dd5baa66bab90c0152d595226e6fcb875144cb94'
+# ipan
+API_KEY='PRCPEH9H-BGVYZCJW-OOI4K28H-JG9Q955J-RWEBUSEJ'
+SECRET_KEY='1073034ef6b2a28147cf75181987d4ace895db41599d89268b93e6ed49c497f22a1e5e1f71e39783'
 
 # INFO TRADE OPTION
 # trade option adalah pengaturan untuk trading yang dilakukan
@@ -19,7 +28,7 @@ TRADE_OPTION=''
 
 # isi dengan balance idr yang mau digunakan untuk auto trade (IDR)
 # NOTE: EXCLUDE FEE
-TRADE_AMOUNT='15000'
+TRADE_AMOUNT='10000'
 
 # isi dengan target profit yang diinginkan (IDR)
 # target profit dihitung dengan hasil rupiah coin yang dibeli + target profit
@@ -45,8 +54,8 @@ INCLUDE_FEE='on'
 # WARNING!!!! untuk trade profile 'instant' dan 'last' diharuskan saldo anda melebihi harga crypto yang dipilih
 # jika ingin membeli dengan harga dibawahnya atau diatasnya biarkan saja kosong
 # referensi last price akan ditampilkan di script
-TRADE_PROFILE='last'
+TRADE_PROFILE=''
 
 PAIR=("BTC_IDR" "1INCH_IDR" "AAVE_IDR" "ABYSS_IDR" "ACT_IDR" "ADA_IDR" "ALGO_IDR" "AOA_IDR" "ATOM_IDR" "ATT_IDR" "BAL_IDR" "BAT_IDR" "BCD_IDR" "BCH_IDR" "BCHA_IDR" "BNB_IDR" "BSV_IDR" "BTG_IDR" "BTS_IDR" "BTT_IDR" "CBK_IDR" "CEL_IDR" "CELO_IDR" "CKB_IDR" "COAL_IDR" "COMP_IDR" "COTI_IDR" "CRO_IDR" "CRV_IDR" "DAD_IDR" "DAI_IDR" "DASH_IDR" "DAX_IDR" "DEP_IDR" "DGB_IDR" "DGX_IDR" "DOGE_IDR" "DOT_IDR" "EGLD_IDR" "EM_IDR" "ENJ_IDR" "EOS_IDR" "ETC_IDR" "ETH_IDR" "EURS_IDR" "FIL_IDR" "FIRO_IDR" "GARD_IDR" "GRT_IDR" "GSC_IDR" "GXC_IDR" "HBAR_IDR" "HEDG_IDR" "HIVE_IDR" "HNST_IDR" "HOT_IDR" "HPB_IDR" "IDK_IDR" "IGNIS_IDR" "INX_IDR" "IOST_IDR" "IOTA_IDR" "JST_IDR" "KDAG_IDR" "LET_IDR" "LGOLD_IDR" "LINK_IDR" "LLAND_IDR" "LSILVER_IDR" "LTC_IDR" "LYFE_IDR" "MANA_IDR" "MATIC_IDR" "MBL_IDR" "MKR_IDR" "NEO_IDR" "NRG_IDR" "NXT_IDR" "OCEAN_IDR" "OCTO_IDR" "OKB_IDR" "OMG_IDR" "ONT_IDR" "ORBS_IDR" "OXT_IDR" "PAXG_IDR" "PUNDIX_IDR" "PXG_IDR" "QTUM_IDR" "REN_IDR" "REP_IDR" "RVN_IDR" "SAND_IDR" "SFI_IDR" "SNX_IDR" "SOLVE_IDR" "SSP_IDR" "STQ_IDR" "SCC_IDR" "SUMO_IDR" "SUSHI_IDR" "TAD_IDR" "TEN_IDR" "TFUEL_IDR" "THETA_IDR" "TITAN_IDR" "TRX_IDR" "UMA_IDR" "UNI_IDR" "USDC_IDR" "USDT_IDR" "VEX_IDR" "VIDY_IDR" "VIDYX_IDR" "VRA_IDR" "VSYS_IDR" "WAVES_IDR" "WBTC_IDR" "WNXM_IDR" "WOZX_IDR" "XDC_IDR" "XEM_IDR" "XLM_IDR" "XMR_IDR" "XRP_IDR" "XSGD_IDR" "XTZ_IDR" "YFI_IDR" "YFII_IDR" "ZEC_IDR" "ZIL_IDR" "ZRX_IDR")
-PAIR_RANDOM=$(shuf -i 0-$(echo ""$[${#PAIR[@]}-1]"") -n 1)
+PAIR_RANDOM=$(shuf -i 0-$(echo ""$[${#PAIR[@]}+1]"") -n 1)
 PAIR_OUTPUT=$(for (( i = 0; i < ${#PAIR[@]}; i++ )); do echo "[$i] ${PAIR[$i]}";done)
