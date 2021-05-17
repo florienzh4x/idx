@@ -362,7 +362,8 @@ ticker $pairChoose
 
 echo -e "${cyan}INFO${putih}: ${biru}$pairChoose ${putih}[ ${cyan}last${putih}: ${biru}$lastPrice ${putih}| ${cyan}ask${putih}: ${biru}$sellOffer ${putih}| ${cyan}bid${putih}: ${biru}$buyOffer ${putih}| ${cyan}high${putih}: ${biru}$highPrice ${putih}| ${cyan}low${putih}: ${biru}$lowPrice ${putih}| ${cyan}volume${putih}: ${biru}$volumeIdr IDR ${putih}] $normal\n"
 
-TRADE_PROFILE=$(echo "$sellOffer" | sed 's/\.//g')
+sellOffer=$(echo "$sellOffer" | sed 's/\.//g')
+TRADE_PROFILE=$sellOffer
 
 INCLUDE_FEE=$(echo "$INCLUDE_FEE" | tr '[:upper:]' '[:lower:]')
 if [[ -z $INCLUDE_FEE ]]; then
