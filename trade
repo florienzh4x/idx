@@ -46,7 +46,7 @@ spinner(){
 		outString='';
 		for string in "${h[@]}"; do
 			outString+=$string;
-			echo -e "\r${putih}Current Status: ${kuning}$outString\033[K$normal";
+			printf "\r${putih}Current Status: ${kuning}$outString\033[K$normal";
 			sleep 1
 		done;
 	done;
@@ -89,12 +89,12 @@ setTargetProfit(){
 ticker(){
 	pair=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 	getData=$(curl -skL "$API/$pair/ticker")
-	lastPrice=$(echo "$getData" | jq -r .ticker.last | ribu)
-	highPrice=$(echo "$getData" | jq -r .ticker.high | ribu)
-	lowPrice=$(echo "$getData" | jq -r .ticker.low | ribu)
-	volumeIdr=$(echo "$getData" | jq -r .ticker.vol_idr | ribu)
-	sellOffer=$(echo "$getData" | jq -r .ticker.sell | ribu)
-	buyOffer=$(echo "$getData" | jq -r .ticker.buy | ribu)
+	lastPrice=$(echo "$getData" | jq -r .ticker.last)
+	highPrice=$(echo "$getData" | jq -r .ticker.high)
+	lowPrice=$(echo "$getData" | jq -r .ticker.low)
+	volumeIdr=$(echo "$getData" | jq -r .ticker.vol_idr)
+	sellOffer=$(echo "$getData" | jq -r .ticker.sell)
+	buyOffer=$(echo "$getData" | jq -r .ticker.buy)
 	if [[ $lastPrice == 0 || $sellOffer == 0 || $buyOffer == 0 || $volumeIdr == 0 || $lastPrice == 'null' || $sellOffer == 'null' || $buyOffer == 'null' || $volumeIdr == 'null' ]]; then
 		echo -e "\n${kuning}WARNING$putih: $1 SUSPEND!!! PILIH YANG LAIN!!!\n"
 		printf "${cyan}pilih nomor crypto ${putih}(${cyan}kosongkan jika ingin random${putih}):${biru} ";read pairNum;
@@ -360,9 +360,8 @@ echo -e "${cyan}crypto yang dipilih${putih}:${biru} $pairChoose ${normal}\n"
 
 ticker $pairChoose
 
-echo -e "${cyan}INFO${putih}: ${biru}$pairChoose ${putih}[ ${cyan}last${putih}: ${biru}$lastPrice ${putih}| ${cyan}ask${putih}: ${biru}$sellOffer ${putih}| ${cyan}bid${putih}: ${biru}$buyOffer ${putih}| ${cyan}high${putih}: ${biru}$highPrice ${putih}| ${cyan}low${putih}: ${biru}$lowPrice ${putih}| ${cyan}volume${putih}: ${biru}$volumeIdr IDR ${putih}] $normal\n"
+echo -e "${cyan}INFO${putih}: ${biru}$pairChoose ${putih}[ ${cyan}last${putih}: ${biru}$lastPrice ${putih}| ${cyan}ask${putih}: ${biru}$sellOffer ${putih}| ${cyan}bid${putih}: ${biru}$buyOffer ${putih}| ${cyan}high${putih}: ${biru}$highPrice ${putih}| ${cyan}low${putih}: ${biru}$lowPrice ${putih}| ${cyan}volume${putih}: ${biru}$volumeIdr IDR ${putih}] $normal\n" | ribu
 
-sellOffer=$(echo "$sellOffer" | sed 's/\.//g')
 TRADE_PROFILE=$sellOffer
 
 INCLUDE_FEE=$(echo "$INCLUDE_FEE" | tr '[:upper:]' '[:lower:]')
