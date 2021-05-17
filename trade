@@ -1,16 +1,25 @@
 #!/usr/bin/env bash
+# Indodax Automatic Trading Tools
+# Creator by Hasanal Bulkiah 
+# FB: https://fb.me/root.florienzh
+# GITHUB: https://github.com/florienzh4x
 source config
 
+PAIR=( $(echo $(curl -skL "https://indodax.com/api/pairs" | jq -r .[].ticker_id | tr '[:lower:]' '[:upper:'])) )
+PAIR_RANDOM=$(shuf -i 0-$(echo ""$[${#PAIR[@]}-1]"") -n 1)
+PAIR_OUTPUT=$(for (( i = 0; i < ${#PAIR[@]}; i++ )); do echo "[$i] ${PAIR[$i]}";done)
+
 checkJq=$(which jq)
-if [[ -z $checkJq ]];then
+checkDc=$(which bc)
+if [[ -z $checkJq || -z $checkDc ]];then
 	echo "NOTE: jq not installed. please input your root password"
 	checkOs=$(cat /etc/os-release | grep -Po '(?<=ID_LIKE\=)[^\n]*' | tr '[:upper:]' '[:lower:]')
 	if [[ $checkOs =~ (ubuntu|debian) ]]; then
-		sudo apt-get install jq
+		sudo apt-get install jq bc
 	elif [[ $checkOs =~ (centos|red hat|rhel) ]]; then
-		yum -y install jq
+		yum -y install jq bc
 	elif [[ $checkOs =~ 'opensuse' ]]; then
-		rpm -qa jq
+		rpm -qa jq bc
 	fi
 fi
 
@@ -29,7 +38,7 @@ normal='\033[0m'
 bold='\e[1m'
 
 clear;
-printf "$bold"
+echo -e "$bold"
 
 spinner(){
 	while true; do
@@ -37,32 +46,49 @@ spinner(){
 		outString='';
 		for string in "${h[@]}"; do
 			outString+=$string;
-			printf "\r${putih}Current Status: ${kuning}$outString\033[K$normal";
+			echo -e "\r${putih}Current Status: ${kuning}$outString\033[K$normal";
 			sleep 1
 		done;
 	done;
 }
+
 ribu(){
     sed -re ' :restart ; s/([0-9])([0-9]{3})($|[^0-9])/\1.\2\3/ ; t restart '
 }
 
-setTradeProfile(){
-
-	if [[ -z $(echo "$TRADE_PROFILE" | grep -E '^\-?[0-9]?\.?[0-9]+$') ]]; then
-		printf "\n${merah}WARNING$putih: HARUS BERUPA ANGKA!!!\n\n"
-		printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
-		setTradeProfile $TRADE_PROFILE
+setTradeAmount(){
+	if [[ -z $(echo "$TRADE_AMOUNT" | grep -E '^\-?[0-9]?\.?[0-9]+$') 
+			|| $TRADE_AMOUNT -lt 0
+			|| $TRADE_AMOUNT =~ ['!@#$%^&*()_+'] ]]; then
+		echo -e "\n${kuning}WARNING$putih: HARUS BERUPA ANGKA!!!\n"
+		printf "${cyan}masukan jumlah balance yang ingin digunakan (IDR)${putih}: ${biru}"; read TRADE_AMOUNT;
+		setTradeAmount $TRADE_AMOUNT
 	fi
-	if [[ -z $TRADE_PROFILE ]]; then
-		printf "\n${merah}WARNING$putih: INPUT TIDAK BOLEH KOSONG!!!\n\n"
-		printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
-		setTradeProfile $TRADE_PROFILE
+	if [[ -z $TRADE_AMOUNT || $TRADE_AMOUNT == 0 ]]; then
+		echo -e "\n${kuning}WARNING$putih: INPUT TIDAK BOLEH KOSONG!!!\n"
+		printf "${cyan}masukan jumlah balance yang ingin digunakan (IDR)${putih}: ${biru}"; read TRADE_AMOUNT;
+		setTradeAmount $TRADE_AMOUNT
+	fi
+}
+
+setTargetProfit(){
+	if [[ -z $(echo "$TARGET_PROFIT" | grep -E '^\-?[0-9]?\.?[0-9]+$') 
+			|| $TARGET_PROFIT -lt 0
+			|| $TARGET_PROFIT =~ ['!@#$%^&*()_+'] ]]; then
+		echo -e "\n${kuning}WARNING$putih: HARUS BERUPA ANGKA!!!\n"
+		printf "${cyan}masukan jumlah target profit yang diinginkan (persen)${putih}: ${biru}"; read TARGET_PROFIT;
+		setTargetProfit $TARGET_PROFIT
+	fi
+	if [[ -z $TARGET_PROFIT || $TARGET_PROFIT == 0 ]]; then
+		echo -e "\n${kuning}WARNING$putih: INPUT TIDAK BOLEH KOSONG!!!\n"
+		printf "${cyan}masukan jumlah target profit yang diinginkan (persen)${putih}: ${biru}"; read TARGET_PROFIT;
+		setTargetProfit $TARGET_PROFIT
 	fi
 }
 
 ticker(){
 	pair=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-	getData=$(curl -skL "https://indodax.com/api/$pair/ticker")
+	getData=$(curl -skL "$API/$pair/ticker")
 	lastPrice=$(echo "$getData" | jq -r .ticker.last | ribu)
 	highPrice=$(echo "$getData" | jq -r .ticker.high | ribu)
 	lowPrice=$(echo "$getData" | jq -r .ticker.low | ribu)
@@ -70,7 +96,7 @@ ticker(){
 	sellOffer=$(echo "$getData" | jq -r .ticker.sell | ribu)
 	buyOffer=$(echo "$getData" | jq -r .ticker.buy | ribu)
 	if [[ $lastPrice == 0 || $sellOffer == 0 || $buyOffer == 0 || $volumeIdr == 0 || $lastPrice == 'null' || $sellOffer == 'null' || $buyOffer == 'null' || $volumeIdr == 'null' ]]; then
-		printf "\n${merah}WARNING$putih: $1 SUSPEND!!! PILIH YANG LAIN!!!\n\n"
+		echo -e "\n${kuning}WARNING$putih: $1 SUSPEND!!! PILIH YANG LAIN!!!\n"
 		printf "${cyan}pilih nomor crypto ${putih}(${cyan}kosongkan jika ingin random${putih}):${biru} ";read pairNum;
 		if [[ $pairNum == '' ]]; then
 			pairChoose=${PAIR[$PAIR_RANDOM]}
@@ -85,26 +111,33 @@ getInfo(){
 	nonce=$(cat nonce)
 	postData='method=getInfo&nonce='$nonce''
 	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
-	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	getData=$(curl -skL -X 'POST' ''$TAPI'' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
 	status=$(echo "$getData" | jq -r .success)
 	echo ""$[$nonce+1]"" > nonce
+	
 	if [[ $status == 1 ]]; then
 		balanceIdr=$(echo "$getData" | jq -r .return.balance.idr | ribu)
+		balanceCoin=$(echo "$getData" | jq -r .return.balance.$pairNames)
 		if [[ $(echo "$getData" | jq -r .return.balance.idr) -lt 10000 ]]; then
-			printf "\n${cyan}Total Balance${putih}:${merah} $balanceIdr ${biru}IDR $normal\n\n"
-			printf "\n${merah}WARNING$putih: SALDO TIDAK MENCUKUPI, SILAHKAN TOP UP TERLEBIH DAHULU!!!\n\n"
+			echo -e "\n${cyan}Total Balance${putih}:${merah} $balanceIdr ${biru}IDR $normal\n"
+			echo -e "\n${kuning}WARNING$putih: SALDO TIDAK MENCUKUPI, SILAHKAN TOP UP TERLEBIH DAHULU!!!\n"
 			exit
 		elif [[ $(echo "$getData" | jq -r .return.balance.idr) -lt $TRADE_AMOUNT ]]; then
-			printf "${cyan}Total Balance${putih}:${merah} $balanceIdr ${biru}IDR $normal\n"
-			printf "${cyan}Trade Amount${putih}:${cyan} $(echo "$TRADE_AMOUNT" | ribu) ${biru}IDR $normal\n"
-			printf "\n${merah}WARNING$putih: SALDO TIDAK MENCUKUPI MEMBELI DENGAN JUMLAH '${cyan}$(echo "$TRADE_AMOUNT" | ribu)${putih}', SILAHKAN TOP UP TERLEBIH DAHULU ATAU RUBAH CONFIG '${cyan}TRADE_AMOUNT${putih}'${merah}!!!\n\n"
+			echo -e "${cyan}Total Balance${putih}:${merah} $balanceIdr ${biru}IDR $normal\n"
+			echo -e "${cyan}Trade Amount${putih}:${cyan} $(echo "$TRADE_AMOUNT" | ribu) ${biru}IDR $normal\n"
+			echo -e "\n${kuning}WARNING$putih: SALDO TIDAK MENCUKUPI MEMBELI DENGAN JUMLAH '${cyan}$(echo "$TRADE_AMOUNT" | ribu)${putih}', SILAHKAN TOP UP TERLEBIH DAHULU ATAU RUBAH CONFIG '${cyan}TRADE_AMOUNT${putih}'${merah}!!!\n"
 			exit
 		fi
 	elif [[ $status == 0 ]]; then
-		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		if [[ $(echo "$getData" | jq -r .error) =~ 'Invalid credentials' ]]; then
+			echo -e "\n${merah}ERROR$putih: $(echo "$getData" | jq -r .error)\n"
+			echo -e "${kuning}WARNING$putih: Silahkan cek API_KEY dan SECRET_KEY di file config"
+		else
+			echo -e "\n${merah}ERROR$putih: $(echo "$getData" | jq -r .error)\n"
+		fi
 		exit
 	else
-		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		echo -e "\n${merah}ERROR$putih: UNKNOWN ERROR!!!\n"
 		exit
 	fi
 }
@@ -116,7 +149,8 @@ getOrder(){
 	postData='method=getOrder&nonce='$nonce'&pair='$pair'&order_id='$orderId''
 	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
 	echo ""$[$nonce+1]"" > nonce
-	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	
+	getData=$(curl -skL -X 'POST' ''$TAPI'' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
 	status=$(echo "$getData" | jq -r .success)
 	if [[ $status == 1 ]]; then
 		statusOrder=$(echo "$getData" | jq -r .return.order.status)
@@ -128,15 +162,16 @@ getOrder(){
 			orderStatus='DONE'
 		fi
 	elif [[ $status == 0 ]]; then
-		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		echo -e "\n${merah}ERROR$putih: $(echo "$getData" | jq -r .error)\n"
 		exit
 	else
-		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		echo -e "\n${merah}ERROR$putih: UNKNOWN ERROR!!!\n"
 		exit
 	fi
 }
 
 buy(){
+	date=$(date '+%d-%B-%y %H:%M')
 	pair="$1"
 	pairName=$(echo "$pair" | awk -F'_' '{ print $1 }')
 	pairNameUpper=$(echo "$pairName")
@@ -146,52 +181,171 @@ buy(){
 	postData='method=trade&nonce='$nonce'&type=buy&pair='$pair'&price='$price'&idr='$balance''
 	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
 	echo ""$[$nonce+1]"" > nonce
-	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	
+	getData=$(curl -skL -X 'POST' ''$TAPI'' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
 	status=$(echo "$getData" | jq -r .success)
 	if [[ $status == 1 ]]; then
 		rpSpend=$(echo "$getData" | jq -r .return.spend_rp)
 		if [[ $rpSpend == 0 ]]; then
 			orderStatus="PENDING"
 			orderId=$(echo "$getData" | jq -r .return.order_id)
-			finalBalance="${cyan}$(echo "$getData" | jq -r .return.balance.idr) ${biru}IDR"
+			finalBalance="$(echo "$getData" | jq -r .return.balance.idr)"
+
+			echo "[$date] ORDER: $pairNameUpper [type: buy | status: $orderStatus | order id: $orderId | balance: $finalBalance]" | ribu >> activity.log
 		else
 			orderStatus="DONE"
-			finalBalance="${cyan}$(echo "$getData" | jq -r .return.balance.idr) ${biru}IDR"
-			feeSpend="${cyan}$(echo "$getData" | jq -r .return.fee) ${biru}IDR"
-			rpSpend="${cyan}$(echo "$getData" | jq -r .return.spend_rp) ${biru}IDR"
-			receiveCoin="${cyan}$(echo "$(echo "$getData" | jq -r .return.receive_$pairName) $pairName" | tr '[:lower:]' '[:upper:]')"
+			finalBalance="$(echo "$getData" | jq -r .return.balance.idr)"
+			feeSpend="$(echo "$getData" | jq -r .return.fee)"
+			rpSpend="$(echo "$getData" | jq -r .return.spend_rp)"
+			receiveCoin="$(echo "$getData" | jq -r .return.receive_$pairName)"
+
+			echo "[$date] ORDER: $pairNameUpper [type: buy | status: $orderStatus | balance spend: $rpSpend | fee: $feeSpend | receive coin : $receiveCoin | balance: $finalBalance]" | ribu >> activity.log
 		fi
 	elif [[ $status == 0 ]]; then
-		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		echo -e "\n${merah}ERROR$putih: $(echo "$getData" | jq -r .error)\n"
 		exit
 	else
-		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		echo -e "\n${merah}ERROR$putih: UNKNOWN ERROR!!!\n"
 		exit
 	fi
 }
 
 sell(){
+	date=$(date '+%d-%B-%y %H:%M')
 	pair="$1"
+	pairName=$(echo "$pair" | sed 's/\_.*//g')
+	pairNameUpper=$(echo "$pairName" | tr '[:lower:]' '[:upper:]')
 	price="$2"
 	balance="$3"
 	nonce=$(cat nonce)
-	postData='method=trade&nonce='$nonce'&type=sell&pair='$pair'&price='$price''
+	postData='method=trade&nonce='$nonce'&type=sell&pair='$pair'&price='$price'&'$pairName'='$balance''
 	sign=$(echo -n ''$postData'' | openssl dgst -sha512 -hmac ''$SECRET_KEY'' | sed 's/(stdin)= //g')
 	echo ""$[$nonce+1]"" > nonce
-	getData=$(curl -skL -X 'POST' 'https://indodax.com/tapi' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
+	getData=$(curl -skL -X 'POST' ''$TAPI'' -H 'Key: '$API_KEY'' -H 'Sign: '$sign'' -d ''$postData'')
 	status=$(echo "$getData" | jq -r .success)
 	if [[ $status == 1 ]]; then
-		echo "ok"
+		if [[ $(echo "$getData" | jq -r .return.sold_$pairName | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}') -gt 0 ]]; then
+			orderStatus="DONE"
+			sold=$(echo "$getData" | jq -r .return.sold_$pairName)
+			receiveIdr=$(echo "$getData" | jq -r .return.receive_rp)
+			fee=$(echo "$getData" | jq -r .return.fee)
+			balance=$(echo "$getData" | jq -r .return.balance.idr)
+
+			echo -e "\n\n${putih}INFO ORDER: ${cyan}$pairNameUpper ${putih}[Type: ${cyan}SELL ${putih}| STATUS: ${ijo}$orderStatus ${putih}| Coin Terjual: ${cyan}$sold ${biru}$pairNameUpper ${putih}| Jumlah IDR: ${cyan}$receiveIdr ${biru}IDR ${putih}| FEE: ${cyan}$fee ${biru}IDR ${putih}| Final Balance: ${cyan}$balance${biru}IDR ${putih}] ${normal}\n\n"
+
+			echo "[$date] ORDER: $pairNameUpper [type: sell | status: $orderStatus | coin sold: $sold | fee: $fee | receive idr : $receiveIdr | balance: $balance]" | ribu >> activity.log
+		elif [[ $(echo "$getData" | jq -r .return.sold_$pairName | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}') == 0 ]]; then
+			orderStatus="PENDING"
+			orderId=$(echo "$getData" | jq -r .return.order_id)
+			coinBalance="$(echo "$getData" | jq -r .return.balance.$pairName)"
+
+			echo -e "\n\n${putih}INFO ORDER: ${cyan}$pairNameUpper ${putih}[Type: ${cyan}SELL ${putih}| STATUS: ${kuning}$orderStatus ${putih}| ORDER ID: ${cyan}$orderId ${putih}| Sisa Coin: ${cyan}$coinBalance]${normal}\n\n"
+
+			echo "[$date] ORDER: $pairNameUpper [type: sell | status: $orderStatus | order id: $orderStatus | sisa coin: $coinBalance]" | ribu >> activity.log
+		fi
 	elif [[ $status == 0 ]]; then
-		printf "\n${merah}WARNING$putih: $(echo "$getData" | jq -r .error)\n"
+		echo -e "\n${merah}ERROR$putih: $(echo "$getData" | jq -r .error)\n"
 		exit
 	else
-		printf "\n${merah}WARNING$putih: UNKNOWN ERROR!!!\n\n"
+		echo -e "\n${merah}ERROR$putih: UNKNOWN ERROR!!! \n"
 		exit
 	fi
 }
 
-printf "${cyan}CRYPTO LIST${putih}: ${normal}\n";
+getTradeInfo(){
+	# getTradeInfo $pair $entryPrice $totalCoin $fee $targetProfit $includeFee
+	sleep 2
+	date=$(date '+%d-%B-%y %H:%M')
+	pair="$1"
+	pairTrade=$(echo "$1" | sed 's/\_//g')
+	pairName=$(echo "$pair" | sed 's/\_.*//g' | tr '[:lower:]' '[:upper:]')
+	entryPrice="$2"
+	totalCoin="$3"
+	fee="$4"
+	targetProfit="$5"
+	includeFee="$6"
+
+	if [[ $includeFee == 'on' ]]; then
+		idrAmount=$(echo $entryPrice \* $totalCoin | bc | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}')
+		cost=$(echo $idrAmount + $fee | bc | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}')
+	elif [[ $includeFee == 'off' ]]; then
+		cost=$(echo $entryPrice \* $totalCoin | bc | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}')
+	fi
+
+	lastPrice=$(curl -skL "$API/$pair/ticker" | jq -r .ticker.last)
+	
+	lastTradeData=$(curl -skL "$API/trades/$pairTrade")
+	lastTradeType=$(echo "$lastTradeData" | jq -r .[0].type)
+	lastTradePrice=$(echo "$lastTradeData" | jq -r .[0].price)
+	lastTradeAmount=$(echo "$lastTradeData" | jq -r .[0].amount)
+	lastTradeRp=$(echo $lastTradePrice \* $lastTradeAmount | bc | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}')
+
+	revenue=$(echo $lastPrice \* $totalCoin | bc | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}')
+	# count profit
+	if [[ $revenue -ge $cost ]]; then
+		
+		profit=$(echo $revenue - $cost | bc -l | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}');
+		percent=$(echo "$profit / $cost" | bc -l);
+		percentage=$(echo "$(echo "scale=2; $percent * 100" | bc -l | bc -l | xargs printf "%.2f" | sed 's/\./,/g')");
+
+		poinUp=$(echo "$lastPrice - $entryPrice" | bc -l)
+
+		output="${cyan}[${putih}$(date '+%X')${cyan}] ${kuning}$pairName ${cyan}[${putih}Last Price: ${cyan}$lastPrice ${cyan}(${ijo}+$poinUp${cyan})] ${cyan}[${putih}Revenue:${cyan} $revenue ${putih}IDR ${cyan}(${ijo}+$profit ${putih}IDR${cyan}) (${ijo}+$percentage%${cyan})] ${cyan}[${putih}Target: ${cyan}${targetProfit}%${cyan}] [${putih}Last Trade Market: ${cyan}$lastTradeType ${cyan}(${putih}Rp.${cyan} ${putih}$lastTradeRp${cyan})]"
+		echo -e "$output" | ribu
+		if [[ $(echo "$percentage" | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}') -ge $targetProfit ]]; then
+			sell $pair $lastPrice $totalCoin
+			echo "[$date] PROFIT [Coin: $pairName | Revenue: $revenue IDR | Profit: $profit IDR (+$percentage%)]" | ribu >> activity.log
+		else
+			getTradeInfo $pair $entryPrice $totalCoin $fee $targetProfit $includeFee
+		fi
+	# count loss
+	elif [[ $revenue -lt $cost ]]; then
+		profit=$(echo $cost - $revenue | bc -l | awk '{print ($0-int($0)<0.499)?int($0):int($0)+1}');
+		percent=$(echo "$profit / $revenue" | bc -l);
+		percentage=$(echo "$(echo "scale=2; $percent * 100" | bc -l | bc -l | xargs printf "%.2f" | sed 's/\./,/g')");
+
+		if [[ $lastPrice > $entryPrice ]]; then
+			poinDown=$(echo "$lastPrice - $entryPrice" | bc -l)
+
+			output="${cyan}[${putih}$(date '+%X')${cyan}] ${kuning}$pairName ${cyan}[${putih}Last Price: ${cyan}$lastPrice ${cyan}(${ijo}+$poinDown${cyan})] ${cyan}[${putih}Revenue:${cyan} $revenue ${putih}IDR ${cyan}(${merah}-$profit${putih} IDR${cyan}) (${merah}-$percentage%${cyan})] ${cyan}[${putih}Target: ${cyan}${targetProfit}%${cyan}] [${putih}Last Trade Market: ${cyan}$lastTradeType ${cyan}(${putih}Rp.${cyan} ${putih}$lastTradeRp${cyan})]"
+		elif [[ $lastPrice < $entryPrice ]]; then
+			poinDown=$(echo "$entryPrice - $lastPrice" | bc -l)
+
+			output="${cyan}[${putih}$(date '+%X')${cyan}] ${kuning}$pairName ${cyan}[${putih}Last Price: ${cyan}$lastPrice ${cyan}(${merah}-$poinDown${cyan})] ${cyan}[${putih}Revenue:${cyan} $revenue ${putih}IDR ${cyan}(${merah}-$profit${putih} IDR${cyan}) (${merah}-$percentage%${cyan})] ${cyan}[${putih}Target: ${cyan}${targetProfit}%${cyan}] [${putih}Last Trade Market: ${cyan}$lastTradeType ${cyan}(${putih}Rp.${cyan} ${putih}$lastTradeRp${cyan})]"
+		elif [[ $lastPrice == $entryPrice ]]; then
+			poinDown=$(echo "$entryPrice - $lastPrice" | bc -l)
+
+			output="${cyan}[${putih}$(date '+%X')${cyan}] ${kuning}$pairName ${cyan}[${putih}Last Price: ${cyan}$lastPrice ${cyan}(${putih}$poinDown${cyan})] ${cyan}[${putih}Revenue:${cyan} $revenue ${putih}IDR ${cyan}(${merah}-$profit${putih} IDR${cyan}) (${merah}-$percentage%${cyan})] ${cyan}[${putih}Target: ${cyan}${targetProfit}%${cyan}] [${putih}Last Trade Market: ${cyan}$lastTradeType ${cyan}(${putih}Rp.${cyan} ${putih}$lastTradeRp${cyan})]"
+		fi
+
+		echo -e "$output" | ribu
+		getTradeInfo $pair $entryPrice $totalCoin $fee $targetProfit $includeFee
+	fi
+}
+
+if [[ -z $API_KEY || -z $SECRET_KEY ]]; then
+		printf "\n${merah}WARNING: ${putih}API KEY DAN SECRET KEY KOSONG${merah}!!!${normal}\n"
+		printf "${putih}Silahkan Kunjungi Link berikut: ${cyan}https://indodax.com/trade_api\n"
+		printf "${putih}Jangan Lupa centang permission '${cyan}Trade${putih}'\n"
+		sleep 3;
+		printf "\n${putih}Masukkan API KEY: ${cyan}"; read -s API_KEYS;
+		echo
+		printf "${putih}Masukkan SECRET KEY: ${cyan}"; read -s SECRET_KEYS;
+		echo
+		if [[ -z $API_KEY ]]; then
+			API_KEY=$API_KEYS
+		fi
+		if [[ -z $SECRET_KEY ]]; then
+			SECRET_KEY=$SECRET_KEYS
+		fi
+		sed -i "s/API_KEY=.*$/API_KEY='$API_KEY'/" config
+		sed -i "s/SECRET_KEY=.*$/SECRET_KEY='$SECRET_KEY'/" config
+		sleep 3;
+fi
+
+clear
+
+echo -e "${cyan}CRYPTO LIST${putih}: ${normal}";
 echo "$PAIR_OUTPUT" | column
 echo
 printf "${cyan}pilih nomor crypto ${putih}(${cyan}kosongkan jika ingin random${putih}):${biru} ";read pairNum;
@@ -202,69 +356,135 @@ else
 	pairChoose=${PAIR[$pairNum]}
 fi
 echo
-printf "${cyan}crypto yang dipilih${putih}:${biru} $pairChoose ${normal}\n\n"
+echo -e "${cyan}crypto yang dipilih${putih}:${biru} $pairChoose ${normal}\n"
 
 ticker $pairChoose
 
-printf "${cyan}INFO${putih}: ${biru}$pairChoose ${putih}[ ${cyan}last${putih}: ${biru}$lastPrice ${putih}| ${cyan}ask${putih}: ${biru}$sellOffer ${putih}| ${cyan}bid${putih}: ${biru}$buyOffer ${putih}| ${cyan}high${putih}: ${biru}$highPrice ${putih}| ${cyan}low${putih}: ${biru}$lowPrice ${putih}| ${cyan}volume${putih}: ${biru}$volumeIdr IDR ${putih}] $normal\n\n"
+echo -e "${cyan}INFO${putih}: ${biru}$pairChoose ${putih}[ ${cyan}last${putih}: ${biru}$lastPrice ${putih}| ${cyan}ask${putih}: ${biru}$sellOffer ${putih}| ${cyan}bid${putih}: ${biru}$buyOffer ${putih}| ${cyan}high${putih}: ${biru}$highPrice ${putih}| ${cyan}low${putih}: ${biru}$lowPrice ${putih}| ${cyan}volume${putih}: ${biru}$volumeIdr IDR ${putih}] $normal\n"
 
-TRADE_PROFILE=$(echo "$TRADE_PROFILE" | tr '[:upper:]' '[:lower:]')
-pairChoose=$(echo "$pairChoose" | tr '[:upper:]' '[:lower:]')
-if [[ $TRADE_PROFILE == '' ]]; then
-	printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
-	setTradeProfile $TRADE_PROFILE
-	printf "\n${cyan}beli dengan harga${putih}:${biru} $(echo "$TRADE_PROFILE" | ribu) IDR $normal\n\n"
-elif [[ $TRADE_PROFILE == 'last' ]]; then
-	printf "${cyan}beli dengan harga${putih}:${biru} $(echo "$lastPrice" | ribu) IDR $normal\n\n"
-	TRADE_PROFILE=$lastPrice
-elif [[ $TRADE_PROFILE == 'instant' ]]; then
-	printf "${cyan}beli dengan harga${putih}:${biru} $(echo "$sellOffer" | ribu) IDR $normal\n\n"
-	TRADE_PROFILE=$sellOffer
-elif [[ ! $TRADE_PROFILE =~ (instant|last) ]]; then
-	printf "${cyan}harga yang ingin dibeli${putih}: ${biru}"; read TRADE_PROFILE;
-	setTradeProfile $TRADE_PROFILE
-	printf "\n${cyan}beli dengan harga${putih}:${biru} $(echo "$TRADE_PROFILE" | ribu) IDR $normal\n\n"
+TRADE_PROFILE=$sellOffer
+
+INCLUDE_FEE=$(echo "$INCLUDE_FEE" | tr '[:upper:]' '[:lower:]')
+if [[ -z $INCLUDE_FEE ]]; then
+	printf "${cyan}hitung biaya fee ke profit? (y/n): "; read INCLUDE_FEE;
+	INCLUDE_FEE=$(echo "$INCLUDE_FEE" | tr '[:upper:]' '[:lower:]')
+	if [[ $INCLUDE_FEE =~ (yes|y) ]]; then
+		INCLUDE_FEE='on'
+	elif [[ $INCLUDE_FEE =~ (no|n) ]]; then
+		INCLUDE_FEE='off'
+	else
+		printf "select (y/n): "; read INCLUDE_FEE;
+		if [[ $INCLUDE_FEE =~ (yes|y) ]]; then 
+			INCLUDE_FEE='on'
+		elif [[ $INCLUDE_FEE =~ (n|no) ]]; then 
+			INCLUDE_FEE='off'
+		else
+			INCLUDE_FEE='on'
+		fi
+	fi
 fi
 
-printf "Waiting Order!!!\n"
-	
-	spinner &
-	pidSpinner=$!
+TRADE_OPTION=$(echo "$TRADE_OPTION" | tr '[:upper:]' '[:lower:]')
 
-	
-	for (( i=0; i<10; i++ ))
-	do
-		sleep 2
-	done
-	kill -9 $pidSpinner
+pairChoose=$(echo "$pairChoose" | tr '[:upper:]' '[:lower:]')
+pairName=$(echo "$pairChoose" | awk -F'_' '{ print $1 }' | tr '[:lower:]' '[:upper:]')
+pairNames=$(echo "$pairChoose" | awk -F'_' '{ print $1 }')
 
 
 getInfo
-printf "\n${cyan}Total Balance${putih}:${ijo} $balanceIdr ${biru}IDR $normal\n\n"
+echo -e "\n${cyan}Total Balance${putih}:${ijo} $balanceIdr ${biru}IDR $normal\n"
 
-buy $pairChoose $TRADE_PROFILE $TRADE_AMOUNT
+if [[ -z $TRADE_AMOUNT ]]; then
+	printf "${cyan}masukan jumlah balance yang ingin digunakan (IDR)${putih}: ${biru}"; read TRADE_AMOUNT
+	setTradeAmount $TRADE_AMOUNT
+fi
 
-if [[ $orderStatus == 'PENDING' ]]; then
-	printf "${putih}INFO ORDER: ${cyan}$pairChoose ${putih}[ STATUS: ${kuning}$orderStatus ${putih}| ORDER ID: ${cyan}$orderId | ${putih}Final Balance: $finalBalance ${putih}]${normal} \n\n"
+if [[ -z $TARGET_PROFIT ]]; then
+	printf "${cyan}masukan jumlah target profit yang diinginkan (persen) (contoh: 10)${putih}: ${biru}"; read TARGET_PROFIT
+	setTargetProfit $TARGET_PROFIT
+fi
 
-	printf "Waiting Order!!!\n"
+printf "${cyan}Apakah ingin menggunakan automatic trading untuk selanjutnya? (y/n): "; read tradeChoose;
+if [[ $tradeChoose =~ (y|Y|yes) ]]; then
+	TRADE_OPTION='auto'
 	
-	
+fi
+
+# save variable to config file
+printf "\n${cyan}Apakah ingin menyimpan konfigurasi untuk trading selanjutnya? (y/n): "; read tradeChoose;
+if [[ $tradeChoose =~ (y|Y|yes) ]]; then
+	sed -i "s/INCLUDE_FEE=.*$/INCLUDE_FEE='$INCLUDE_FEE'/" config
+	sed -i "s/TRADE_AMOUNT=.*$/TRADE_AMOUNT='$TRADE_AMOUNT'/" config
+	sed -i "s/TARGET_PROFIT=.*$/TARGET_PROFIT='$TARGET_PROFIT'/" config
+	sed -i "s/TRADE_OPTION=.*$/TRADE_OPTION='$TRADE_OPTION'/" config
+	printf "\n${putih}: ${cyan}Berhasil Menyimpan konfigurasi\n"
+fi
+
+source config
+
+if [[ $TRADE_OPTION == 'auto' ]]; then
 	while true; do
-		getOrder $pairChoose $orderId
-		
-		if [[ $orderStatus == 'DONE' ]]; then
-			kill -9 $pidSpinner
-			printf "\r${putih}Current Status: ${ijo}DONE\033[K\n\n$normal"
-			break
-		elif [[ $orderStatus == 'CANCEL' ]]; then
-			kill -9 $pidSpinner
-			printf "\r${putih}Current Status: ${merah}CANCEL\033[K\n\n$normal"
-			break
-		fi
+		ticker $pairChoose
+		TRADE_PROFILE=$sellOffer
+		buy $pairChoose $TRADE_PROFILE $TRADE_AMOUNT
+		if [[ $orderStatus == 'PENDING' ]]; then
+			echo -e "\n\n${putih}INFO ORDER: ${cyan}$pairName ${putih}[Type: ${cyan}BUY ${putih}| STATUS: ${kuning}$orderStatus ${putih}| ORDER ID: ${cyan}$orderId | ${putih}Final Balance: ${cyan}$finalBalance ${biru}IDR ${putih}]${normal} \n"
 
-		sleep 10
-	done
-elif [[ $orderStatus == 'DONE' ]]; then
-	printf "${putih}INFO ORDER: ${cyan}$pairChoose ${putih}[ STATUS: ${ijo}$orderStatus ${putih}| Coin: $receiveCoin ${putih}| Spend Balance: $rpSpend ${putih}| FEE: ${cyan}$feeSpend ${putih}| Final Balance: $finalBalance ${putih}] ${normal} \n\n"
+			echo -e "Waiting Order!!!\n"
+			
+			spinner &
+			pidSpinner=$!
+			while true; do
+				getOrder $pairChoose $orderId
+				if [[ $orderStatus == 'DONE' ]]; then
+					kill -9 $pidSpinner
+					wait $pidSpinner 2>/dev/null
+					echo -e "\r${putih}Current Status: ${ijo}DONE\033[K\n$normal"
+					break
+				elif [[ $orderStatus == 'CANCEL' ]]; then
+					kill -9 $pidSpinner
+					wait $pidSpinner 2>/dev/null
+					echo -e "\r${putih}Current Status: ${merah}CANCEL\033[K\n$normal"
+					break
+				fi
+
+				sleep 10
+			done
+		elif [[ $orderStatus == 'DONE' ]]; then
+			echo -e "\n\n${putih}INFO ORDER: ${cyan}$pairName ${putih}[Type: ${cyan}BUY ${putih}| STATUS: ${ijo}$orderStatus ${putih}| Coin: ${cyan}$receiveCoin ${biru}$pairName ${putih}| Spend Balance: ${cyan}$rpSpend ${biru}IDR ${putih}| FEE: ${cyan}$feeSpend ${biru}IDR ${putih}| Final Balance: ${cyan}$finalBalance ${biru}IDR ${putih}] ${normal} \n"
+		fi
+		getTradeInfo $pairChoose $TRADE_PROFILE $receiveCoin $feeSpend $TARGET_PROFIT $INCLUDE_FEE
+	done;
+	wait
+else
+	ticker $pairChoose
+	TRADE_PROFILE=$sellOffer
+	buy $pairChoose $TRADE_PROFILE $TRADE_AMOUNT
+	if [[ $orderStatus == 'PENDING' ]]; then
+		echo -e "${putih}INFO ORDER: ${cyan}$pairName ${putih}[Type: ${cyan}BUY ${putih}| STATUS: ${kuning}$orderStatus ${putih}| ORDER ID: ${cyan}$orderId | ${putih}Final Balance: ${cyan}$finalBalance ${biru}IDR ${putih}]${normal} \n"
+
+		echo -e "Waiting Order!!!\n"
+			
+		spinner &
+		pidSpinner=$!
+		while true; do
+			getOrder $pairChoose $orderId
+			if [[ $orderStatus == 'DONE' ]]; then
+				kill -9 $pidSpinner
+				wait $pidSpinner 2>/dev/null
+				echo -e "\r${putih}Current Status: ${ijo}DONE\033[K\n$normal"
+				break
+			elif [[ $orderStatus == 'CANCEL' ]]; then
+				kill -9 $pidSpinner
+				wait $pidSpinner 2>/dev/null
+				echo -e "\r${putih}Current Status: ${merah}CANCEL\033[K\n$normal"
+				break
+			fi
+
+			sleep 10
+		done
+	elif [[ $orderStatus == 'DONE' ]]; then
+			echo -e "\n\n${putih}INFO ORDER: ${cyan}$pairName ${putih}[Type: ${cyan}BUY ${putih}| STATUS: ${ijo}$orderStatus ${putih}| Coin: ${cyan}$receiveCoin ${biru}$pairName ${putih}| Spend Balance: ${cyan}$rpSpend ${biru}IDR ${putih}| FEE: ${cyan}$feeSpend ${biru}IDR ${putih}| Final Balance: ${cyan}$finalBalance ${biru}IDR ${putih}] ${normal} \n"
+	fi
+	getTradeInfo $pairChoose $TRADE_PROFILE $receiveCoin $feeSpend $TARGET_PROFIT $INCLUDE_FEE
 fi
