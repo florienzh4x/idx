@@ -439,12 +439,12 @@ if [[ $TRADE_OPTION == 'auto' ]]; then
 				if [[ $orderStatus == 'DONE' ]]; then
 					kill -9 $pidSpinner
 					wait $pidSpinner 2>/dev/null
-					echo -e "\r${putih}Current Status: ${ijo}DONE\033[K\n$normal"
+					printf "\r${putih}Current Status: ${ijo}DONE\033[K\n$normal"
 					break
 				elif [[ $orderStatus == 'CANCEL' ]]; then
 					kill -9 $pidSpinner
 					wait $pidSpinner 2>/dev/null
-					echo -e "\r${putih}Current Status: ${merah}CANCEL\033[K\n$normal"
+					printf "\r${putih}Current Status: ${merah}CANCEL\033[K\n$normal"
 					break
 				fi
 
@@ -472,12 +472,12 @@ else
 			if [[ $orderStatus == 'DONE' ]]; then
 				kill -9 $pidSpinner
 				wait $pidSpinner 2>/dev/null
-				echo -e "\r${putih}Current Status: ${ijo}DONE\033[K\n$normal"
+				printf "\r${putih}Current Status: ${ijo}DONE\033[K\n$normal"
 				break
 			elif [[ $orderStatus == 'CANCEL' ]]; then
 				kill -9 $pidSpinner
 				wait $pidSpinner 2>/dev/null
-				echo -e "\r${putih}Current Status: ${merah}CANCEL\033[K\n$normal"
+				printf "\r${putih}Current Status: ${merah}CANCEL\033[K\n$normal"
 				break
 			fi
 
