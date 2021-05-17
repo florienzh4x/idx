@@ -1,5 +1,0 @@
-API KEY= 0CVDHHW1-AVJ7JTF7-NMLNXGE5-I8KLGGWP-YEG7JCE9
-SECRET KEY= 54474c97d9b7684af71b4ceea89fc1f7776b680a486fa5f6d8be3ce67bb3b3c274ccf58a94d55fbf
-
-
-method=trade&nonce=3&type=buy&pair=aoa_idr&price=53&idr=100
